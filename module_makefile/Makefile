@@ -1,10 +1,11 @@
 _MODULE = $1
 _MAINFILE=${_MODULE}.tf
-_VARIABLESFILE=${_MODULE}/variables.tf
+_MODULE_DIR=../../modules/${_MODULE}
+_VARIABLESFILE=${_MODULE_DIR}/variables.tf
 
 define TF_MODULE
 module "${_MODULE}" {
-  source  = "./${_MODULE}"
+  source  = "${_MODULE_DIR}"
   env     = var.env
   project = var.project
   ${_MODULE}_config = {
@@ -45,7 +46,7 @@ ifeq ("$(wildcard $(_MAINFILE))", "")
 else
 	echo "[INFO] ${_MAINFILE} is found."
 endif
-	mkdir -p ${_MODULE}
+	mkdir -p ${_MODULE_DIR}
 
 ifeq ("$(wildcard $(_VARIABLESFILE))", "")
 	echo "$${TF_VARIABLES}" > ${_VARIABLESFILE}
@@ -53,10 +54,10 @@ else
 	echo "[INFO] ${_VARIABLESFILE} is found."
 endif
 
-	touch ${_MODULE}/main.tf
-	touch ${_MODULE}/outputs.tf
+	touch ${_MODULE_DIR}/main.tf
+	touch ${_MODULE_DIR}/outputs.tf
 	terraform init
 delete-module:
 	terraform apply -destroy -target module.${_MODULE}
-	rm -r ${_MODULE}
+	rm -r ${_MODULE_DIR}
 	rm ${_MAINFILE}
