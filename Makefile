@@ -1,4 +1,5 @@
 S3_DIR_NAME = 00_S3_tfstate
+_ENV_TOPDIR=environments
 AWS_PROFILE = $1
 _WORKSPACE_TFVARS=${_DIRNAME}/${_ENV_WP}.tfvars
 _WORKSPACE_DEF = terraform -chdir=${_DIRNAME} workspace select default
@@ -101,8 +102,8 @@ provider "aws" {
   region  = var.region
     default_tags {
     tags = {
-      Environment    = var.env     
-      Owner          = var.owner   
+      Environment    = var.env
+      Owner          = var.owner
       CmBillingGroup = "$${var.project}/$${var.env}"
       Terraform      = "True"
     }
@@ -115,9 +116,9 @@ provider "aws" {
   alias   = "us-east"
     default_tags {
     tags = {
-      Environment    = var.env     
-      Owner          = var.owner       
-      CmBillingGroup = "$${var.project}/$${var.env}" 
+      Environment    = var.env
+      Owner          = var.owner
+      CmBillingGroup = "$${var.project}/$${var.env}"
       Terraform      = "True"
     }
   }
@@ -152,16 +153,16 @@ export TF_BACKEND
 
 # ディレクトリ名定義
 ifeq ($(_ENV),prd)
-_DIRNAME=production
+_DIRNAME=${_ENV_TOPDIR}/production
 endif
 ifeq ($(_ENV),stg)
-_DIRNAME=staging
+_DIRNAME=${_ENV_TOPDIR}/staging
 endif
 ifeq ($(_ENV),dev)
-_DIRNAME=development
+_DIRNAME=${_ENV_TOPDIR}/development
 endif
 ifeq ($(_ENV),common)
-_DIRNAME=common
+_DIRNAME=${_ENV_TOPDIR}/common
 endif
 
 ifeq ($(_DIRNAME),)
