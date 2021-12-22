@@ -8,7 +8,10 @@ module "${_MODULE}" {
   source  = "${_MODULE_DIR}"
   env     = var.env
   project = var.project
-  ${_MODULE}_config = {
+  default_config = {
+  }
+
+  option_config = {
   }
 
 }
@@ -29,7 +32,10 @@ variable "project" {
 variable "env" {
 }
 
-variable "${_MODULE}_config" {
+variable "default_config" {
+}
+
+variable "option_config" {
 }
 
 endef
