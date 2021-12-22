@@ -37,7 +37,6 @@ variable "default_config" {
 
 variable "option_config" {
 }
-
 endef
 export TF_VARIABLES
 
