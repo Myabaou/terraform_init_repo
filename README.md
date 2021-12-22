@@ -59,13 +59,14 @@ _AWS_PROFILE=aws_account_profile
 PROJECT=sample_pj
 make tf-init AWS_PROFILE=${_AWS_PROFILE} _ENV=example _PROJECT=${PROJECT}
 ```
-`example`というディレクトリが生成される。
+`environments`配下に`example`というディレクトリが生成される。
 
 ```s
-example
-├── Makefile
-├── backend.tf
-├── main.tf
-├── readme.md
-└── variables.tf
+environments
+└── example
+         ├── Makefile
+         ├── backend.tf
+         ├── main.tf
+         ├── readme.md
+         └── variables.tf
 ```
