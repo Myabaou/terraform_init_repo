@@ -166,7 +166,7 @@ _DIRNAME=${_ENV_TOPDIR}/common
 endif
 
 ifeq ($(_DIRNAME),)
-_DIRNAME=${_ENV}
+_DIRNAME=${_ENV_TOPDIR}/${_ENV}
 endif
 
 .PHONY: s3-tfstate-destroy s3-tfstate-init s3-tfstate-create s3-tfstate-show tf-init tf-destroy tf-apply tf-wp-create tf-wp-apply tf-wp-delete
