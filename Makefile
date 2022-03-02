@@ -61,26 +61,41 @@ define TF_S3TFSTATE
 # Resource
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "$${var.aws_profile}-terraform-state"
-  versioning {
-    enabled = true
-  }
+}
 
-  # 暗号化を有効
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# 暗号化を有効
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
     }
   }
+}
 
-  lifecycle_rule {
-    enabled                                = true
-    abort_incomplete_multipart_upload_days = 7
 
+resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
+  depends_on = [aws_s3_bucket_versioning.terraform_state]
+  bucket     = aws_s3_bucket.terraform_state.id
+  rule {
+    id = "tfstateexpire"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
     noncurrent_version_expiration {
-      days = 100
+      noncurrent_days = 100
     }
+    status = "Enabled"
   }
 }
 
@@ -92,6 +107,7 @@ output "s3" {
     aws_s3_bucket.terraform_state.bucket,
   ]
 }
+
 endef
 export TF_S3TFSTATE
 
