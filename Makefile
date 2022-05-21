@@ -3,6 +3,12 @@ _ENV_TOPDIR=environments
 AWS_PROFILE = $1
 _WORKSPACE_TFVARS=${_DIRNAME}/${_ENV_WP}.tfvars
 _WORKSPACE_DEF = terraform -chdir=${_DIRNAME} workspace select default
+_MODULE = $1
+_MODULE_MAIN_TF=${_MODULE}.tf
+_MODULE_DIR=modules/${_MODULE}
+_MODULE_VAR_TF=${_MODULE_DIR}/variables.tf
+_TARGET = $1
+
 # 環境の指定がない場合
 ifeq ($(2),)
 _ENV = default
@@ -46,7 +52,7 @@ variable "region" {
 }
 
 variable "owner" {
-  default = "SRE"      # 実行者のオーナー情報適宜変更
+  default = "Gourmet"      # 実行者のオーナー情報適宜変更
 }
 
 endef
@@ -166,6 +172,43 @@ endef
 export TF_BACKEND
 
 
+define TF_MODULE
+module "${_MODULE}" {
+  source  = "../../${_MODULE_DIR}"
+  env     = var.env
+  project = var.project
+  default_config = {
+  }
+
+  option_config = {
+  }
+
+}
+
+output "${_MODULE}-info" {
+  value = module.${_MODULE}.*
+}
+
+endef
+export TF_MODULE
+
+
+define TF_MODULE_VARIABLES
+# Variable
+variable "project" {
+}
+
+variable "env" {
+}
+
+variable "default_config" {
+}
+
+variable "option_config" {
+}
+endef
+export TF_MODULE_VARIABLES
+
 
 # ディレクトリ名定義
 ifeq ($(_ENV),prd)
@@ -185,7 +228,33 @@ ifeq ($(_DIRNAME),)
 _DIRNAME=${_ENV_TOPDIR}/${_ENV}
 endif
 
+TERRAFORM_CMD=terraform -chdir=${_DIRNAME}
+ROOT_BACKEND_TF=${_DIRNAME}/backend.tf
+ROOT_VAR_TF=${_DIRNAME}/variables.tf
+ROOT_MAIN_TF=${_DIRNAME}/main.tf
+
+
+
 .PHONY: s3-tfstate-destroy s3-tfstate-init s3-tfstate-create s3-tfstate-show tf-init tf-destroy tf-apply tf-wp-create tf-wp-apply tf-wp-delete
+
+envcheck:
+ifeq ($(strip $(_ENV)),default)
+	@echo "[WARN] ENV is Empty. usage: make tf-plan _ENV=stg ."
+	@exit 1
+else
+	@echo "[INFO] ENV is Found."
+	@exit 0
+endif
+
+tgcheck:
+ifeq ($(strip $(_TARGET)),)
+	@echo "[WARN]Target is Empty. usage: make plan _TARGET=[Module Name]."
+	@exit 1
+else
+	@echo "[INFO]Target is Found."
+	@exit 0
+endif
+_TARGET_SED := $(shell echo ${_TARGET} | sed "s/\[/\\\[\\\\\"/g" | sed "s/\]/\\\\\"\\\]/g" )
 
 s3-tfstate-destroy: ## remove tfstate S3 Bucket
 	terraform -chdir=${S3_DIR_NAME} apply -destroy
@@ -194,9 +263,9 @@ s3-tfstate-destroy: ## remove tfstate S3 Bucket
 s3-tfstate-init: ## init tfstate S3 Bucket
 	mkdir -p ${S3_DIR_NAME}
 
-	echo "$${TF_MAIN}" > ${S3_DIR_NAME}/main.tf
-	echo "$${TF_VARIABLES}" > ${S3_DIR_NAME}/variables.tf
-	echo "$${TF_S3TFSTATE}" > ${S3_DIR_NAME}/s3_tfstate.tf
+	@echo "$${TF_MAIN}" > ${S3_DIR_NAME}/main.tf
+	@echo "$${TF_VARIABLES}" > ${S3_DIR_NAME}/variables.tf
+	@echo "$${TF_S3TFSTATE}" > ${S3_DIR_NAME}/s3_tfstate.tf
 
 	terraform -chdir=${S3_DIR_NAME} init
 	terraform -chdir=${S3_DIR_NAME} plan
@@ -206,25 +275,97 @@ s3-tfstate-show: ## show tfstate S3 Bucket
 	terraform -chdir=${S3_DIR_NAME} show
 
 tf-init:
-	mkdir -p ${_DIRNAME}
-	echo "$${TF_BACKEND}" > ${_DIRNAME}/backend.tf
-	echo "$${TF_VARIABLES}" > ${_DIRNAME}/variables.tf
-	echo "$${TF_MAIN}" > ${_DIRNAME}/main.tf
+	@mkdir -p ${_DIRNAME}
 
-	terraform -chdir=${_DIRNAME} init
-	cp module_makefile/readme.md ${_DIRNAME}/
-	cp module_makefile/Makefile ${_DIRNAME}/
+ifeq ("$(wildcard $(ROOT_BACKEND_TF))", "")
+	@echo "$${TF_BACKEND}" > ${ROOT_BACKEND_TF}
+else
+	@echo "[INFO] ${ROOT_BACKEND_TF} is found. already exists."
+endif
+
+ifeq ("$(wildcard $(ROOT_VAR_TF))", "")
+	@echo "$${TF_BACKEND}" > ${ROOT_VAR_TF}
+else
+	@echo "[INFO] ${ROOT_VAR_TF} is found. already exists."
+endif
+
+ifeq ("$(wildcard $(ROOT_MAIN_TF))", "")
+	@echo "$${TF_BACKEND}" > ${ROOT_MAIN_TF}
+else
+	@echo "[INFO] ${ROOT_MAIN_TF} is found. already exists."
+endif
+
+	${TERRAFORM_CMD} init
 
 tf-destroy:
 
-	terraform -chdir=${_DIRNAME} apply -destroy
+	${TERRAFORM_CMD} apply -destroy
 	rm -rfv ${_DIRNAME}
 
-tf-apply:
-	terraform -chdir=${_DIRNAME} apply
+tf-allplan:
+	@make envcheck
+	${TERRAFORM_CMD} plan
 
+tf-allapply:
+	@make envcheck
+	${TERRAFORM_CMD} apply
+	@make tf-output
+
+tf-list:
+	@make envcheck
+	${TERRAFORM_CMD} state list
+
+tf-validate:
+	@make envcheck
+	${TERRAFORM_CMD} validate
+
+tf-output:
+	@make envcheck
+	${TERRAFORM_CMD} output > ${_DIRNAME}/aws_info.txt
+
+tf-lock:
+	@make envcheck
+	${TERRAFORM_CMD} providers lock -platform=darwin_amd64 -platform=darwin_arm64 -platform=linux_amd64 -platform=linux_arm64
+tf-show:
+	@make envcheck
+	@make tgcheck
+	${TERRAFORM_CMD} state show ${_TARGET_SED}
+tf-import:
+	@make envcheck
+	@make tgcheck
+	${TERRAFORM_CMD} import ${_TARGET_SED}
+tf-plan:
+	@make envcheck
+	@make tgcheck
+	${TERRAFORM_CMD} plan -target=${_TARGET_SED}
+tf-apply:
+	@make envcheck
+	@make tgcheck
+	${TERRAFORM_CMD} apply -target=${_TARGET_SED}
+
+
+create-module:
+	@make envcheck
+ifeq ("$(wildcard $(_MODULE_MAIN_TF))", "")
+	echo "$${TF_MODULE}" > ${_DIRNAME}/${_MODULE_MAIN_TF}
+else
+	echo "[INFO] ${_DIRNAME}/${_MODULE_MAIN_TF} is found."
+endif
+	mkdir -p ./${_MODULE_DIR}
+
+ifeq ("$(wildcard $(_MODULE_VAR_TF))", "")
+	echo "$${TF_MODULE_VARIABLES}" > ${_MODULE_VAR_TF}
+else
+	echo "[INFO] ${_MODULE_VAR_TF} is found."
+endif
+
+	touch ${_MODULE_DIR}/main.tf
+	touch ${_MODULE_DIR}/outputs.tf
+	@make tf-init
+
+### WORKSPACE ###
 tf-wp-create:
-	terraform -chdir=${_DIRNAME} workspace new ${_ENV_WP}
+	${TERRAFORM_CMD} workspace new ${_ENV_WP}
 ifeq ("$(wildcard $(_WORKSPACE_TFVARS))", "")
 	echo "env = \"$${_ENV_WP}\"" > ${_WORKSPACE_TFVARS}
 else
@@ -232,12 +373,13 @@ else
 endif
 	@${_WORKSPACE_DEF}
 tf-wp-delete:
-	terraform -chdir=${_DIRNAME} workspace select ${_ENV_WP}
-	terraform -chdir=${_DIRNAME} apply -destroy -var-file ../${_WORKSPACE_TFVARS}
+	${TERRAFORM_CMD} workspace select ${_ENV_WP}
+	${TERRAFORM_CMD} apply -destroy -var-file ../${_WORKSPACE_TFVARS}
 	@${_WORKSPACE_DEF}
-	terraform -chdir=${_DIRNAME} workspace delete ${_ENV_WP}
+	${TERRAFORM_CMD} workspace delete ${_ENV_WP}
 	rm -f ${_WORKSPACE_TFVARS}
 tf-wp-apply:
-	terraform -chdir=${_DIRNAME} workspace select ${_ENV_WP}
-	-terraform -chdir=${_DIRNAME} apply -var-file ../${_WORKSPACE_TFVARS}
+	${TERRAFORM_CMD} workspace select ${_ENV_WP}
+	-${TERRAFORM_CMD} apply -var-file ../${_WORKSPACE_TFVARS}
 	@${_WORKSPACE_DEF}
+
