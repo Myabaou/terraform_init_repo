@@ -302,43 +302,52 @@ tf-destroy:
 	${TERRAFORM_CMD} apply -destroy
 	rm -rfv ${_DIRNAME}
 
-tf-allplan:
+init:
 	@make envcheck
-	${TERRAFORM_CMD} plan
+	${TERRAFORM_CMD} init
 
-tf-allapply:
+allplan:
 	@make envcheck
-	${TERRAFORM_CMD} apply
-	@make tf-output
+	${TERRAFORM_CMD} plan --parallelism=20
 
-tf-list:
+allapply:
+	@make envcheck
+	${TERRAFORM_CMD} apply --parallelism=20
+	@make output
+
+refresh:
+	@make envcheck
+	${TERRAFORM_CMD} apply -refresh-only
+	@make output
+
+list:
 	@make envcheck
 	${TERRAFORM_CMD} state list
 
-tf-validate:
+validate:
 	@make envcheck
 	${TERRAFORM_CMD} validate
 
-tf-output:
+output:
 	@make envcheck
 	${TERRAFORM_CMD} output > ${_DIRNAME}/aws_info.txt
 
-tf-lock:
+lock:
 	@make envcheck
 	${TERRAFORM_CMD} providers lock -platform=darwin_amd64 -platform=darwin_arm64 -platform=linux_amd64 -platform=linux_arm64
-tf-show:
+show:
 	@make envcheck
 	@make tgcheck
 	${TERRAFORM_CMD} state show ${_TARGET_SED}
-tf-import:
+import:
 	@make envcheck
 	@make tgcheck
 	${TERRAFORM_CMD} import ${_TARGET_SED}
-tf-plan:
+plan:
 	@make envcheck
 	@make tgcheck
 	${TERRAFORM_CMD} plan -target=${_TARGET_SED}
-tf-apply:
+apply:
 	@make envcheck
 	@make tgcheck
 	${TERRAFORM_CMD} apply -target=${_TARGET_SED}
@@ -364,7 +373,7 @@ endif
 	@make tf-init
 
 ### WORKSPACE ###
-tf-wp-create:
+ws-create:
 	${TERRAFORM_CMD} workspace new ${_ENV_WP}
 ifeq ("$(wildcard $(_WORKSPACE_TFVARS))", "")
 	echo "env = \"$${_ENV_WP}\"" > ${_WORKSPACE_TFVARS}
@@ -372,13 +381,13 @@ else
 	echo "[INFO] ${_WORKSPACE_TFVARS} is found."
 endif
 	@${_WORKSPACE_DEF}
-tf-wp-delete:
+ws-delete:
 	${TERRAFORM_CMD} workspace select ${_ENV_WP}
 	${TERRAFORM_CMD} apply -destroy -var-file ../${_WORKSPACE_TFVARS}
 	@${_WORKSPACE_DEF}
 	${TERRAFORM_CMD} workspace delete ${_ENV_WP}
 	rm -f ${_WORKSPACE_TFVARS}
-tf-wp-apply:
+ws-apply:
 	${TERRAFORM_CMD} workspace select ${_ENV_WP}
 	-${TERRAFORM_CMD} apply -var-file ../${_WORKSPACE_TFVARS}
 	@${_WORKSPACE_DEF}
