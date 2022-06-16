@@ -41,7 +41,7 @@ make s3-tfstate-destroy
 
 - 全ての環境一括
 ```sh
-PROJECT=petlife
+PROJECT=YOUR-PROJECT
 for i in prd stg dev common
 do
   make tf-init _ENV=${i} _PROJECT=${PROJECT}
