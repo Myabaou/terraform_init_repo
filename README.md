@@ -3,6 +3,7 @@
 ## 前提条件
 - `.terraform` 配下にモジュールがDLされるので`.gitignore_global`設定でignore推奨
 - aws cliのバージョンが古いとうまくいかない。（幾つのバージョン以上からかは不明
+- aws-vaultインストール済
 
 ## tfstate ファイル格納用S3バケット作成
 - `_PROJECT`に何も指定していない場合、値が`AWS_PROFILE`と同じ値になる。
@@ -10,12 +11,17 @@
 - 再作成は削除してからだいぶ経過しないと作成できない。
 
 
+## Makefile変更
+AWS_PROFILE = YOUR-AWSACCOUNTNAME
+の箇所を環境に合わせる。
+
+
+
 - init/plan
 
 ```sh
-_AWS_PROFILE=aws_account_profile
-PROJECT=sample_pj
-make s3-tfstate-init AWS_PROFILE=${_AWS_PROFILE} _PROJECT=${PROJECT}
+PROJECT=YOUR-PROJECT
+make s3-tfstate-init _PROJECT=${PROJECT}
 ```
 
 - apply(tfstateファイル格納用S3バケット作成)
@@ -32,22 +38,13 @@ make s3-tfstate-destroy
 
 ## 各環境用作成
 
-- 個別（プロジェクト指定版）
-```sh
-_AWS_PROFILE=aws_account_profile
-PROJECT=sample_pj
-make tf-init AWS_PROFILE=${_AWS_PROFILE} _ENV=dev _PROJECT=${PROJECT}
-```
-
-
 
 - 全ての環境一括
 ```sh
-_AWS_PROFILE=aws_account_profile
-PROJECT=sample
+PROJECT=YOUR-PROJECT
 for i in prd stg dev common
 do
-  make tf-init AWS_PROFILE=${_AWS_PROFILE} _ENV=${i} _PROJECT=${PROJECT}
+  make tf-init _ENV=${i} _PROJECT=${PROJECT}
 done
 ```
 
@@ -73,13 +70,33 @@ environments
 
 
 ---
+
+## Plan
+
+- STGの場合
 ```sh
-make create-module _MODULE=[モジュール名]
+make _ENV=stg allplan 
 ```
 
-`モジュール名.tf` と `モジュール名`のディレクトリが作成される。
+## Apply
 
-## モジュール削除
+- STGの場合
 ```sh
-make delete-module _MODULE=[モジュール名]
+make _ENV=stg allapply
+```
+
+## ターゲットリソースありの場合
+
+```sh
+make _ENV=stg show _TARGET='module.securitygroups.aws_security_group.this["from-cf"]'
+```
+シングルクォートで囲む
+
+
+
+## モジュール作成
+
+- STGの場合
+```sh
+make _ENV=stg create-module _MODULE=test
 ```

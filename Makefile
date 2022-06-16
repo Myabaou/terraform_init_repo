@@ -1,6 +1,6 @@
+AWS_PROFILE = YOUR-AWSACCOUNTNAME
 S3_DIR_NAME = 00_S3_tfstate
 _ENV_TOPDIR=environments
-AWS_PROFILE = $1
 _WORKSPACE_TFVARS=${_DIRNAME}/${_ENV_WP}.tfvars
 _WORKSPACE_DEF = terraform -chdir=${_DIRNAME} workspace select default
 _MODULE = $1
@@ -35,10 +35,6 @@ define TF_VARIABLES
 #各環境のterraform.tfstate格納用S3の設定
 
 # Variable
-variable "aws_profile" {
-  default = "${AWS_PROFILE}"
-}
-
 variable "project" {
   default = "${_PROJECT}"
 }
@@ -52,7 +48,7 @@ variable "region" {
 }
 
 variable "owner" {
-  default = "Gourmet"      # 実行者のオーナー情報適宜変更
+  default = "Media"      # 実行者のオーナー情報適宜変更
 }
 
 endef
@@ -66,7 +62,7 @@ define TF_S3TFSTATE
 
 # Resource
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "$${var.aws_profile}-terraform-state"
+  bucket = "${AWS_PROFILE}-terraform-state"
 }
 
 
@@ -120,7 +116,6 @@ export TF_S3TFSTATE
 
 define TF_MAIN
 provider "aws" {
-  profile = var.aws_profile
   region  = var.region
     default_tags {
     tags = {
@@ -133,7 +128,6 @@ provider "aws" {
 }
 
 provider "aws" {
-  profile = var.aws_profile
   region  = "us-east-1"
   alias   = "us-east"
     default_tags {
@@ -161,7 +155,6 @@ define TF_BACKEND
 terraform {
   required_version = ">= 1.0.10"
   backend "s3" {
-    profile = "${AWS_PROFILE}"
     bucket  = "${AWS_PROFILE}-terraform-state"
     region  = "${_REGION}"
     key     = "${_DIRNAME}/terraform.tfstate"
@@ -228,7 +221,8 @@ ifeq ($(_DIRNAME),)
 _DIRNAME=${_ENV_TOPDIR}/${_ENV}
 endif
 
-TERRAFORM_CMD=terraform -chdir=${_DIRNAME}
+TERRAFORM_CMD_TFSTATE=aws-vault exec ${AWS_PROFILE} -- terraform -chdir=${S3_DIR_NAME}
+TERRAFORM_CMD=aws-vault exec ${AWS_PROFILE} -- terraform -chdir=${_DIRNAME}
 ROOT_BACKEND_TF=${_DIRNAME}/backend.tf
 ROOT_VAR_TF=${_DIRNAME}/variables.tf
 ROOT_MAIN_TF=${_DIRNAME}/main.tf
@@ -239,7 +233,7 @@ ROOT_MAIN_TF=${_DIRNAME}/main.tf
 
 envcheck:
 ifeq ($(strip $(_ENV)),default)
-	@echo "[WARN] ENV is Empty. usage: make tf-plan _ENV=stg ."
+	@echo "[WARN] ENV is Empty. usage: make allplan _ENV=stg ."
 	@exit 1
 else
 	@echo "[INFO] ENV is Found."
@@ -257,22 +251,21 @@ endif
 _TARGET_SED := $(shell echo ${_TARGET} | sed "s/\[/\\\[\\\\\"/g" | sed "s/\]/\\\\\"\\\]/g" )
 
 s3-tfstate-destroy: ## remove tfstate S3 Bucket
-	terraform -chdir=${S3_DIR_NAME} apply -destroy
+	${TERRAFORM_CMD_TFSTATE} apply -destroy
 	rm -rf ${S3_DIR_NAME}
 
 s3-tfstate-init: ## init tfstate S3 Bucket
 	mkdir -p ${S3_DIR_NAME}
-
 	@echo "$${TF_MAIN}" > ${S3_DIR_NAME}/main.tf
 	@echo "$${TF_VARIABLES}" > ${S3_DIR_NAME}/variables.tf
 	@echo "$${TF_S3TFSTATE}" > ${S3_DIR_NAME}/s3_tfstate.tf
 
-	terraform -chdir=${S3_DIR_NAME} init
-	terraform -chdir=${S3_DIR_NAME} plan
+	${TERRAFORM_CMD_TFSTATE} init
+	${TERRAFORM_CMD_TFSTATE} plan
 s3-tfstate-create: ## create tfstate S3 Bucket
-	terraform -chdir=${S3_DIR_NAME} apply
+	${TERRAFORM_CMD_TFSTATE} apply
 s3-tfstate-show: ## show tfstate S3 Bucket
-	terraform -chdir=${S3_DIR_NAME} show
+	${TERRAFORM_CMD_TFSTATE} show
 
 tf-init:
 	@mkdir -p ${_DIRNAME}
@@ -284,13 +277,13 @@ else
 endif
 
 ifeq ("$(wildcard $(ROOT_VAR_TF))", "")
-	@echo "$${TF_BACKEND}" > ${ROOT_VAR_TF}
+	@echo "$${TF_VARIABLES}" > ${ROOT_VAR_TF}
 else
 	@echo "[INFO] ${ROOT_VAR_TF} is found. already exists."
 endif
 
 ifeq ("$(wildcard $(ROOT_MAIN_TF))", "")
-	@echo "$${TF_BACKEND}" > ${ROOT_MAIN_TF}
+	@echo "$${TF_MAIN}" > ${ROOT_MAIN_TF}
 else
 	@echo "[INFO] ${ROOT_MAIN_TF} is found. already exists."
 endif
@@ -307,12 +300,12 @@ init:
 	${TERRAFORM_CMD} init
 
 allplan:
-	@make envcheck
-	${TERRAFORM_CMD} plan --parallelism=20
+	@make init
+	${TERRAFORM_CMD} plan -parallelism=20
 
 allapply:
 	@make envcheck
-	${TERRAFORM_CMD} apply --parallelism=20
+	${TERRAFORM_CMD} apply -parallelism=20
 	@make output
 
 refresh:
@@ -352,6 +345,10 @@ apply:
 	@make tgcheck
 	${TERRAFORM_CMD} apply -target=${_TARGET_SED}
 
+staterm:
+	@make envcheck
+	@make tgcheck
+	${TERRAFORM_CMD} state rm ${_TARGET_SED}
 
 create-module:
 	@make envcheck
@@ -373,7 +370,7 @@ endif
 	@make tf-init
 
 ### WORKSPACE ###
-ws-create:
+tf-wp-create:
 	${TERRAFORM_CMD} workspace new ${_ENV_WP}
 ifeq ("$(wildcard $(_WORKSPACE_TFVARS))", "")
 	echo "env = \"$${_ENV_WP}\"" > ${_WORKSPACE_TFVARS}
@@ -381,14 +378,13 @@ else
 	echo "[INFO] ${_WORKSPACE_TFVARS} is found."
 endif
 	@${_WORKSPACE_DEF}
-ws-delete:
+tf-wp-delete:
 	${TERRAFORM_CMD} workspace select ${_ENV_WP}
 	${TERRAFORM_CMD} apply -destroy -var-file ../${_WORKSPACE_TFVARS}
 	@${_WORKSPACE_DEF}
 	${TERRAFORM_CMD} workspace delete ${_ENV_WP}
 	rm -f ${_WORKSPACE_TFVARS}
-ws-apply:
+tf-wp-apply:
 	${TERRAFORM_CMD} workspace select ${_ENV_WP}
 	-${TERRAFORM_CMD} apply -var-file ../${_WORKSPACE_TFVARS}
 	@${_WORKSPACE_DEF}
-
