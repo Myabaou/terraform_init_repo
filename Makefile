@@ -248,7 +248,7 @@ else
 	@echo "[INFO]Target is Found."
 	@exit 0
 endif
-_TARGET_SED := $(shell echo ${_TARGET} | sed "s/\[/\\\[/g" | sed "s/\]/\\\]/g" | sed "s/\\\"/\\\\\"/g" )
+_TARGET_SED := $(shell echo '${_TARGET}' | sed "s/\[/\\\[/g" | sed "s/\]/\\\]/g" | sed "s/\\\"/\\\\\"/g")
 
 s3-tfstate-destroy: ## remove tfstate S3 Bucket
 	${TERRAFORM_CMD_TFSTATE} apply -destroy
