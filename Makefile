@@ -299,6 +299,10 @@ init:
 	@make envcheck
 	${TERRAFORM_CMD} init
 
+upgrade:
+	@make envcheck
+	${TERRAFORM_CMD} init -upgrade
+
 allplan:
 	@make init
 	${TERRAFORM_CMD} plan -parallelism=20
@@ -316,6 +320,10 @@ refresh:
 list:
 	@make envcheck
 	${TERRAFORM_CMD} state list
+
+console:
+	@make envcheck
+	${TERRAFORM_CMD} console
 
 validate:
 	@make envcheck
