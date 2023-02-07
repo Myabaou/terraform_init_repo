@@ -48,7 +48,7 @@ variable "region" {
 }
 
 variable "owner" {
-  default = "Media"      # 実行者のオーナー情報適宜変更
+  default = "MBS"      # 実行者のオーナー情報適宜変更
 }
 
 endef
@@ -134,7 +134,7 @@ provider "aws" {
     tags = {
       Environment    = var.env
       Owner          = var.owner
-      CmBillingGroup = "$${var.project}/$${var.env}"
+      BillingGroup = "$${var.project}/$${var.env}"
       Terraform      = "True"
     }
   }

@@ -13,6 +13,11 @@
 
 ## Makefile変更
 AWS_PROFILE = YOUR-AWSACCOUNTNAME
+```
+variable "owner" {
+  default = "MBS"      # 実行者のオーナー情報適宜変更
+}
+```
 の箇所を環境に合わせる。
 
 
